@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#071b2b">
+  <meta name="description" content="Encontre peixes ornamentais compatíveis com o pH do seu aquário.">
+  <title>AquaPH — Encontre o pH ideal</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script>
+    tailwind.config = {
+      theme: { extend: {
+        fontFamily: { sans: ['DM Sans', 'sans-serif'], display: ['Manrope', 'sans-serif'] },
+        colors: { ocean: { 950:'#061521', 900:'#0a2030', 800:'#103447', 700:'#155064' }, aqua:'#62e6ce' }
+      }}
+    };
+  </script>
+</head>
+<body class="font-sans text-white">
+  <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
+  <header class="site-header">
+    <a class="brand" href="#" aria-label="AquaPH início">
+      <span class="brand-mark">≈</span><span>Aqua<span class="brand-light">PH</span></span>
+    </a>
+    <nav class="hidden sm:flex items-center gap-7 text-sm text-slate-300">
+      <a href="#explorar" class="nav-link">Explorar peixes</a>
+      <a href="#sobre" class="nav-link">Como funciona</a>
+    </nav>
+    <div class="water-mode-switch" role="group" aria-label="Tipo de aquário">
+      <button class="mode-button is-active" id="freshwaterMode" type="button" aria-pressed="true">♧ <span>Água doce</span></button>
+      <button class="mode-button" id="saltwaterMode" type="button" aria-pressed="false">✧ <span>Água marinha</span></button>
+    </div>
+  </header>
+
+  <main class="relative z-10">
+    <section class="hero page-wrap">
+      <div class="hero-copy">
+        <div class="eyebrow"><span class="eyebrow-line"></span> SEU AQUÁRIO, EM EQUILÍBRIO</div>
+        <h1>Encontre o <span class="gradient-text">pH ideal</span><br>para seus peixes.</h1>
+        <p class="hero-subtitle" id="heroSubtitle">Explore a escala, descubra espécies compatíveis e crie um ambiente onde a vida aquática prospera.</p>
+        <a href="#explorar" class="primary-link">Explorar a régua <span aria-hidden="true">↓</span></a>
+      </div>
+      <div class="hero-art" aria-label="Ilustração de peixe em ambiente aquático">
+        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
+        <div class="hero-image-wrap">
+          <img
+            id="heroFish"
+            src="img/peixes-para-aquario-de-agua-doce-1.jpg"
+            alt="Peixe tropical de água doce"
+            class="hero-image"
+>
+        </div>
+        <div class="floating-note"><span class="note-icon">✳</span><span><strong>Água equilibrada</strong><small>Vida mais saudável</small></span></div>
+        <div class="hero-caption">UM ECOSSISTEMA, MIL POSSIBILIDADES</div>
+      </div>
+    </section>
+
+    <section id="explorar" class="page-wrap explorer-section">
+      <div class="section-heading">
+        <div><div class="eyebrow"><span class="eyebrow-line"></span> FERRAMENTA INTERATIVA</div><h2>Explore a régua de pH</h2></div>
+        <p>Selecione um ponto da escala para descobrir quais espécies toleram esse nível.</p>
+      </div>
+
+      <div class="control-panel glass-panel">
+        <div class="scale-topline">
+          <div><span class="muted-label">PH SELECIONADO</span><div class="current-reading"><span id="phValue">7,0</span><span class="reading-unit">pH</span></div></div>
+          <div class="water-state"><span class="state-dot" id="stateDot"></span><div><strong id="phState">Neutro</strong><small id="phDescription">Equilíbrio entre acidez e alcalinidade</small></div></div>
+        </div>
+        <div class="scale-wrap">
+          <div class="scale-labels"><span>Ácido</span><span>Neutro</span><span>Alcalino</span></div>
+          <div class="ph-scale" id="phScale" role="group" aria-label="Selecione o pH da água">
+            <div class="scale-gradient"></div>
+            <div class="scale-ticks" id="scaleTicks"></div>
+            <button class="scale-thumb" id="scaleThumb" type="button" aria-label="Valor de pH selecionado: 7,0" aria-valuemin="5" aria-valuemax="9" aria-valuenow="7" role="slider" tabindex="0"><span id="thumbValue">7,0</span></button>
+          </div>
+          <div class="scale-endpoints"><span>5,0</span><span>9,0</span></div>
+          <input id="phRange" class="sr-only" type="range" min="5" max="9" step="0.1" value="7" aria-label="Selecionar pH">
+        </div>
+        <div class="scale-footer"><span><span class="tiny-dot"></span> Clique ou arraste pela escala</span><span id="scaleRangeLabel">Intervalo: 5,0 – 9,0</span></div>
+      </div>
+
+      <div class="results-heading">
+        <div><div class="eyebrow"><span class="eyebrow-line"></span> <span id="speciesEyebrow">ESPÉCIES DE ÁGUA DOCE</span></div><h2 id="resultsTitle">Quem combina com sua água?</h2><p id="resultDescription">Peixes com faixa recomendada incluindo pH 7,0.</p></div>
+        <label class="search-box"><span aria-hidden="true">⌕</span><input id="searchInput" type="search" placeholder="Buscar peixe..." aria-label="Buscar peixe pelo nome"></label>
+      </div>
+      <p id="dataStatus" class="text-sm text-slate-400 mb-4" role="status">Carregando dados científicos…</p>
+      <div id="fishGrid" class="fish-grid" aria-live="polite"></div>
+      <div id="emptyState" class="empty-state hidden"><span>◌</span><h3>Nenhum peixe encontrado</h3><p>Tente outro nome ou selecione um pH diferente.</p></div>
+      <div class="note-banner"><span class="note-symbol">ⓘ</span><p><strong>Importante:</strong> a compatibilidade por pH não garante que duas espécies possam viver juntas. Considere também temperatura, dureza da água, comportamento, tamanho do aquário e origem dos peixes. Evite mudanças bruscas de pH.</p></div>
+    </section>
+
+    <section id="sobre" class="page-wrap about-section">
+      <div class="about-card"><div class="about-icon">◉</div><div><h3>Como usar o AquaPH</h3><p id="aboutDescription">Escolha o pH medido no seu aquário. A lista mostra espécies cuja faixa orientativa inclui esse valor. Os dados são referências iniciais e devem ser confirmados para cada espécie e linhagem.</p></div></div>
+      <div class="mini-stat"><strong>5,0–9,0</strong><span>faixa explorável</span></div><div class="mini-stat"><strong>100%</strong><span>interativo</span></div>
+    </section>
+  </main>
+  <footer class="site-footer"><a class="brand" href="#"><span class="brand-mark">≈</span><span>Aqua<span class="brand-light">PH</span></span></a><span>Feito para quem cuida da vida aquática.</span><span>© <span id="year"></span> AquaPH</span></footer>
+  <script src="app.js"></script>
+</body>
+</html>
