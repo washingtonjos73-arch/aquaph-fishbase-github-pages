@@ -11,7 +11,7 @@ OUT.mkdir(exist_ok=True)
 # Columns vary slightly between snapshots; discover the schema before selecting fields.
 def load_species(server):
     url = f"https://fishbase.ropensci.org/{server}/species.parquet"
-    con = duckdb.connect()
+    con = duckdb.connect(config={"httpfs_client_implementation": "httplib"})
     con.execute("INSTALL httpfs; LOAD httpfs;")
     con.execute("INSTALL parquet; LOAD parquet;")
     # Describe schema without downloading the full table into Python.
