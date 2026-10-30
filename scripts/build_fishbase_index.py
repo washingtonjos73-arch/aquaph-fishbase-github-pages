@@ -1,75 +1,173 @@
+
 """Build a small static species index from FishBase and SeaLifeBase Parquet snapshots.
 The browser never downloads the full tables. pH ranges are NOT sourced from these tables.
 """
 import json
 from pathlib import Path
+from datetime import datetime, timezone
+
 import duckdb
 
 OUT = Path("data")
 OUT.mkdir(exist_ok=True)
 
-# Columns vary slightly between snapshots; discover the schema before selecting fields.
-def load_species(server):
-    url = f"https://fishbase.ropensci.org/{server}/species.parquet"
-    con = duckdb.connect(config={"httpfs_client_implementation": "httplib"})
-    con.execute("INSTALL httpfs; LOAD httpfs;")
-    con.execute("INSTALL parquet; LOAD parquet;")
-    # Describe schema without downloading the full table into Python.
-    cols = [r[0] for r in con.execute("DESCRIBE SELECT * FROM read_parquet(?)", [url]).fetchall()]
-    lookup = {c.lower(): c for c in cols}
-    def col(*names):
-        return next((lookup[n.lower()] for n in names if n.lower() in lookup), None)
-    scientific = col("ScientificName", "SpeciesName")
-    genus = col("Genus")
-    species = col("Species")
-    common = col("FBname", "CommonName", "EnglishName")
-    spec_code = col("SpecCode")
-    fresh = col("Fresh")
-    salt = col("Salt")
-    brack = col("Brack")
-    if not scientific and not (genus and species):
-        print(f"No recognizable scientific-name columns for {server}; skipping")
-        return []
-    # Quote column names safely and normalize common-name blanks.
-    q = lambda c: '"' + c.replace('"','""') + '"'
-    sci_expr = q(scientific) if scientific else f"concat({q(genus)}, ' ', {q(species)})"
-    common_expr = q(common) if common else "NULL"
-    fields = [f"{sci_expr} AS scientificName", f"{common_expr} AS commonName"]
-    fields.append(f"{q(spec_code)} AS specCode" if spec_code else "NULL AS specCode")
-    fields.append(f"{q(fresh)} AS fresh" if fresh else "NULL AS fresh")
-    fields.append(f"{q(salt)} AS salt" if salt else "NULL AS salt")
-    fields.append(f"{q(brack)} AS brackish" if brack else "NULL AS brackish")
-    query = f"SELECT {', '.join(fields)} FROM read_parquet(?) WHERE {sci_expr} IS NOT NULL"
-    rows = con.execute(query, [url]).fetchall()
-    con.close()
-    result=[]
+# Source Cooperative: FishBase and SeaLifeBase have independent versions.
+SOURCES = {
+    "fishbase": (
+        "https://data.source.coop/cboettig/fishbase/"
+        "fb/v26.07/parquet/species.parquet"
+    ),
+    "sealifebase": (
+        "https://data.source.coop/cboettig/fishbase/"
+        "slb/v26.04/parquet/species.parquet"
+    ),
+}
+
+
+def load_species(server, url):
+    con = duckdb.connect(
+        config={"httpfs_client_implementation": "httplib"}
+    )
+
+    try:
+        con.execute("INSTALL httpfs")
+        con.execute("LOAD httpfs")
+
+        # Discover available columns.
+        cols = [
+            row[0]
+            for row in con.execute(
+                f"DESCRIBE SELECT * FROM read_parquet('{url}')"
+            ).fetchall()
+        ]
+
+        lookup = {name.lower(): name for name in cols}
+
+        def col(*names):
+            return next(
+                (lookup[name.lower()] for name in names
+                 if name.lower() in lookup),
+                None
+            )
+
+        scientific = col("ScientificName", "SpeciesName")
+        genus = col("Genus")
+        species = col("Species")
+        common = col("FBname", "CommonName", "EnglishName")
+        spec_code = col("SpecCode")
+        fresh = col("Fresh", "Freshwater")
+        salt = col("Salt", "Saltwater")
+        brack = col("Brack", "Brackish")
+
+        if not scientific and not (genus and species):
+            raise RuntimeError(
+                f"Scientific-name columns not found in {server}. "
+                f"Available columns: {cols}"
+            )
+
+        def quote(name):
+            return '"' + name.replace('"', '""') + '"'
+
+        sci_expr = (
+            quote(scientific)
+            if scientific
+            else f"concat({quote(genus)}, ' ', {quote(species)})"
+        )
+
+        common_expr = quote(common) if common else "NULL"
+        code_expr = quote(spec_code) if spec_code else "NULL"
+        fresh_expr = quote(fresh) if fresh else "NULL"
+        salt_expr = quote(salt) if salt else "NULL"
+        brack_expr = quote(brack) if brack else "NULL"
+
+        query = f"""
+            SELECT
+                {sci_expr} AS scientificName,
+                {common_expr} AS commonName,
+                {code_expr} AS specCode,
+                {fresh_expr} AS fresh,
+                {salt_expr} AS salt,
+                {brack_expr} AS brackish
+            FROM read_parquet('{url}')
+            WHERE {sci_expr} IS NOT NULL
+        """
+
+        rows = con.execute(query).fetchall()
+
+    finally:
+        con.close()
+
+    result = []
+
+    def is_true(value):
+        return str(value).strip().lower() in (
+            "yes", "true", "1", "y"
+        ) if value is not None else False
+
     for sci, common_name, code, freshwater, saltwater, brackish in rows:
         sci = str(sci).strip() if sci else ""
-        if not sci: continue
-        result.append({"scientificName": sci, "commonName": str(common_name).strip() if common_name else "", "specCode": code,
-                       "freshwater": str(freshwater).strip().lower() in ("yes", "true", "1", "y"),
-                       "saltwater": str(saltwater).strip().lower() in ("yes", "true", "1", "y"),
-                       "brackish": str(brackish).strip().lower() in ("yes", "true", "1", "y"),
-                       "source": "FishBase" if server == "fishbase" else "SeaLifeBase"})
+
+        if not sci:
+            continue
+
+        result.append({
+            "scientificName": sci,
+            "commonName": (
+                str(common_name).strip() if common_name else ""
+            ),
+            "specCode": code,
+            "freshwater": is_true(freshwater),
+            "saltwater": is_true(saltwater),
+            "brackish": is_true(brackish),
+            "source": (
+                "FishBase" if server == "fishbase" else "SeaLifeBase"
+            )
+        })
+
     return result
 
-all_species=[]
-for server in ("fishbase", "sealifebase"):
+
+all_species = []
+
+for server, url in SOURCES.items():
     try:
-        rows=load_species(server)
+        rows = load_species(server, url)
         all_species.extend(rows)
         print(f"{server}: {len(rows)} species")
+
     except Exception as exc:
         print(f"Warning: could not load {server}: {exc}")
 
+
 # Remove duplicate scientific names, preferring FishBase records.
-by_name={}
+by_name = {}
+
 for row in all_species:
-    key=row["scientificName"].casefold()
-    if key not in by_name or (not by_name[key]["commonName"] and row["commonName"]):
-        by_name[key]=row
+    key = row["scientificName"].casefold()
+
+    if key not in by_name or (
+        not by_name[key]["commonName"] and row["commonName"]
+    ):
+        by_name[key] = row
+
+
 if not by_name:
-    raise SystemExit("No species data retrieved; refusing to publish an empty index")
-path=OUT/"fishbase-index.json"
-path.write_text(json.dumps({"generatedAt": __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(), "count":len(by_name), "species":list(by_name.values())}, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+    raise SystemExit(
+        "No species data retrieved; refusing to publish an empty index"
+    )
+
+
+path = OUT / "fishbase-index.json"
+
+data = {
+    "generatedAt": datetime.now(timezone.utc).isoformat(),
+    "count": len(by_name),
+    "species": list(by_name.values())
+}
+
+path.write_text(
+    json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+    encoding="utf-8"
+)
+
 print(f"Wrote {path} with {len(by_name)} records")
