@@ -15,7 +15,7 @@ OUT.mkdir(exist_ok=True)
 SOURCES = {
     "fishbase": (
         "https://data.source.coop/cboettig/fishbase/"
-        "fb/v26.07/parquet/species.parquet"
+        "fb/v26.06/parquet/species.parquet"
     ),
     "sealifebase": (
         "https://data.source.coop/cboettig/fishbase/"
